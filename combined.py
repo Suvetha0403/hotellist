@@ -27,72 +27,6 @@ def extract_tar_br(source, destination):
     with tarfile.open(tar_file) as tar:
         tar.extractall(destination)
 
-
-def extract_chromium():
-
-    chromium = "/tmp/chromium"
-
-    if not os.path.exists(chromium):
-
-        with open(
-            "/opt/nodejs/node_modules/@sparticuz/chromium/bin/chromium.br",
-            "rb"
-        ) as f:
-            data = brotli.decompress(f.read())
-
-        with open(chromium, "wb") as f:
-            f.write(data)
-
-        os.chmod(chromium, 0o755)
-
-    extract_tar_br(
-        "/opt/nodejs/node_modules/@sparticuz/chromium/bin/al2023.tar.br",
-        "/tmp/al2023"
-    )
-
-    extract_tar_br(
-        "/opt/nodejs/node_modules/@sparticuz/chromium/bin/fonts.tar.br",
-        "/tmp/fonts"
-    )
-
-    extract_tar_br(
-        "/opt/nodejs/node_modules/@sparticuz/chromium/bin/swiftshader.tar.br",
-        "/tmp/swiftshader"
-    )
-
-    if not os.path.exists("/tmp/libGLESv2.so"):
-        os.symlink(
-            "/tmp/swiftshader/libGLESv2.so",
-            "/tmp/libGLESv2.so"
-        )
-
-    if not os.path.exists("/tmp/libEGL.so"):
-        os.symlink(
-            "/tmp/swiftshader/libEGL.so",
-            "/tmp/libEGL.so"
-        )
-
-    if not os.path.exists("/tmp/libvk_swiftshader.so"):
-        os.symlink(
-            "/tmp/swiftshader/libvk_swiftshader.so",
-            "/tmp/libvk_swiftshader.so"
-        )
-
-    os.environ["LD_LIBRARY_PATH"] = ":".join([
-        "/tmp/al2023/lib",
-        "/tmp/swiftshader",
-        os.environ.get("LD_LIBRARY_PATH", "")
-    ])
-
-    os.environ["FONTCONFIG_PATH"] = "/tmp/fonts"
-
-    os.environ["VK_ICD_FILENAMES"] = \
-        "/tmp/swiftshader/vk_swiftshader_icd.json"
-
-    os.environ["LIBGL_DRIVERS_PATH"] = "/tmp/swiftshader"
-
-    return chromium
-
 async def scrape_booking(location, checkin, checkout):
 
     from urllib.request import urlopen
@@ -119,44 +53,11 @@ async def scrape_booking(location, checkin, checkout):
 
     async with async_playwright() as p:
 
-        chromium_path = extract_chromium()
-    
-        print(
-            subprocess.check_output(
-                ["ldd", chromium_path],
-                env={
-                    **os.environ,
-                    "LD_LIBRARY_PATH":
-                        "/tmp/al2023/lib:/tmp/swiftshader"
-                }
-            ).decode()
-        )
-    
-
-        print("Chromium exists:", os.path.exists(chromium_path))
-
-        print(
-            subprocess.check_output(
-                ["ldd", chromium_path],
-                env=os.environ
-            ).decode()
-        )
-
         browser = await p.chromium.launch(
-            executable_path=chromium_path,
             headless=True,
             args=[
                 "--no-sandbox",
-                "--disable-blink-features=AutomationControlled",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-                "--disable-webgl",
-                "--disable-vulkan",
-                "--disable-software-rasterizer",
-                "--use-gl=swiftshader",
-                "--single-process",
-                "--no-zygote"
+                "--disable-dev-shm-usage"
             ]
         )
 
