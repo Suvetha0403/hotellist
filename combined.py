@@ -8,7 +8,9 @@ import re
 from urllib.parse import quote, urlparse, parse_qs, urlencode, urlunparse
 from playwright.async_api import async_playwright
 import platform
+from flask import Flask, request, render_template_string
 
+app = Flask(__name__)
 def extract_tar_br(source, destination):
 
     if os.path.exists(destination):
@@ -490,3 +492,88 @@ async def scrape_booking(location, checkin, checkout):
     results.sort(key=rating_value, reverse=True)
 
     return results
+
+@app.route("/")
+def home():
+    return """
+    <h2>Hotel Search</h2>
+
+    <form action="/search" method="get">
+        <p>
+            <input
+                type="text"
+                name="location"
+                placeholder="Location"
+                required>
+        </p>
+
+        <p>
+            <input
+                type="date"
+                name="checkin"
+                required>
+        </p>
+
+        <p>
+            <input
+                type="date"
+                name="checkout"
+                required>
+        </p>
+
+        <button type="submit">
+            Search
+        </button>
+    </form>
+    """
+
+
+@app.route("/search")
+def search():
+
+    location = request.args.get("location")
+    checkin = request.args.get("checkin")
+    checkout = request.args.get("checkout")
+
+    if not location or not checkin or not checkout:
+        return "Missing parameters"
+
+    hotels = asyncio.run(
+        scrape_booking(
+            location,
+            checkin,
+            checkout
+        )
+    )
+
+    html = f"<h2>Hotels Found: {len(hotels)}</h2>"
+
+    for hotel in hotels:
+
+        html += f"""
+        <hr>
+
+        <h3>{hotel['hotel_name']}</h3>
+
+        <p><b>Location:</b> {hotel['location']}</p>
+
+        <p><b>Price:</b> {hotel['price']}</p>
+
+        <p><b>Rating:</b> {hotel['rating']}</p>
+
+        <a href="{hotel['link']}" target="_blank">
+            View Hotel
+        </a>
+        """
+
+    return html
+
+
+if __name__ == "__main__":
+
+    app.run(
+        host="0.0.0.0",
+        port=1000,
+        debug=True,
+        use_reloader=False
+    )
