@@ -396,8 +396,6 @@ async def search_all(location, checkin, checkout):
         agoda_task,
         return_exceptions=True
     )
-    print("BOOKING COUNT:", len(booking_results))
-    print("AGODA COUNT:", len(agoda_results))
 
     if isinstance(booking_results, Exception):
         print("Booking Error:", booking_results)
