@@ -1,12 +1,106 @@
-from flask import Flask, request, render_template_string
+import brotli
+import os
+import tarfile
+import subprocess
+import json
 import asyncio
-from urllib.parse import quote, urlparse, parse_qs, urlencode, urlunparse
 import re
+from urllib.parse import quote, urlparse, parse_qs, urlencode, urlunparse
 from playwright.async_api import async_playwright
+import platform
 
-app = Flask(__name__)
+def extract_tar_br(source, destination):
+
+    if os.path.exists(destination):
+        return
+
+    tar_file = destination + ".tar"
+
+    with open(source, "rb") as f:
+        data = brotli.decompress(f.read())
+
+    with open(tar_file, "wb") as f:
+        f.write(data)
+
+    with tarfile.open(tar_file) as tar:
+        tar.extractall(destination)
+
+
+def extract_chromium():
+
+    chromium = "/tmp/chromium"
+
+    if not os.path.exists(chromium):
+
+        with open(
+            "/opt/nodejs/node_modules/@sparticuz/chromium/bin/chromium.br",
+            "rb"
+        ) as f:
+            data = brotli.decompress(f.read())
+
+        with open(chromium, "wb") as f:
+            f.write(data)
+
+        os.chmod(chromium, 0o755)
+
+    extract_tar_br(
+        "/opt/nodejs/node_modules/@sparticuz/chromium/bin/al2023.tar.br",
+        "/tmp/al2023"
+    )
+
+    extract_tar_br(
+        "/opt/nodejs/node_modules/@sparticuz/chromium/bin/fonts.tar.br",
+        "/tmp/fonts"
+    )
+
+    extract_tar_br(
+        "/opt/nodejs/node_modules/@sparticuz/chromium/bin/swiftshader.tar.br",
+        "/tmp/swiftshader"
+    )
+
+    if not os.path.exists("/tmp/libGLESv2.so"):
+        os.symlink(
+            "/tmp/swiftshader/libGLESv2.so",
+            "/tmp/libGLESv2.so"
+        )
+
+    if not os.path.exists("/tmp/libEGL.so"):
+        os.symlink(
+            "/tmp/swiftshader/libEGL.so",
+            "/tmp/libEGL.so"
+        )
+
+    if not os.path.exists("/tmp/libvk_swiftshader.so"):
+        os.symlink(
+            "/tmp/swiftshader/libvk_swiftshader.so",
+            "/tmp/libvk_swiftshader.so"
+        )
+
+    os.environ["LD_LIBRARY_PATH"] = ":".join([
+        "/tmp/al2023/lib",
+        "/tmp/swiftshader",
+        os.environ.get("LD_LIBRARY_PATH", "")
+    ])
+
+    os.environ["FONTCONFIG_PATH"] = "/tmp/fonts"
+
+    os.environ["VK_ICD_FILENAMES"] = \
+        "/tmp/swiftshader/vk_swiftshader_icd.json"
+
+    os.environ["LIBGL_DRIVERS_PATH"] = "/tmp/swiftshader"
+
+    return chromium
 
 async def scrape_booking(location, checkin, checkout):
+
+    from urllib.request import urlopen
+
+    print(
+        "Public IP:",
+        urlopen("https://api.ipify.org", timeout=10)
+            .read()
+            .decode()
+    )
 
     results = []
 
@@ -23,53 +117,280 @@ async def scrape_booking(location, checkin, checkout):
 
     async with async_playwright() as p:
 
-        browser = await p.chromium.launch(headless=True)
+        chromium_path = extract_chromium()
+    
+        print(
+            subprocess.check_output(
+                ["ldd", chromium_path],
+                env={
+                    **os.environ,
+                    "LD_LIBRARY_PATH":
+                        "/tmp/al2023/lib:/tmp/swiftshader"
+                }
+            ).decode()
+        )
+    
+
+        print("Chromium exists:", os.path.exists(chromium_path))
+
+        print(
+            subprocess.check_output(
+                ["ldd", chromium_path],
+                env=os.environ
+            ).decode()
+        )
+
+        browser = await p.chromium.launch(
+            executable_path=chromium_path,
+            headless=True,
+            args=[
+                "--no-sandbox",
+                "--disable-blink-features=AutomationControlled",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--disable-webgl",
+                "--disable-vulkan",
+                "--disable-software-rasterizer",
+                "--use-gl=swiftshader",
+                "--single-process",
+                "--no-zygote"
+            ]
+        )
+
+        proc = browser._impl_obj._connection._transport._proc
+
+        #print("returncode =", proc.returncode)
+
+        browser_process = browser._impl_obj._connection._transport._proc
+
+        #print("PID:",browser_process.pid)
+
+        #print("Browser connected:", browser.is_connected())
+
+        await asyncio.sleep(2)
+
+        if os.path.exists("/tmp/chrome.log"):
+            print(open("/tmp/chrome.log").read())
+
+        print(
+            "Return code after 2 sec:",
+            browser_process.returncode
+        )
+
+        print(
+            "Browser connected after 2 sec:",
+            browser.is_connected()
+        )
 
         context = await browser.new_context(
             locale="en-IN",
             timezone_id="Asia/Kolkata",
             viewport={"width": 1366, "height": 768},
+            java_script_enabled=True,
             user_agent=(
-                "Mozilla/5.0 "
-                "(Windows NT 10.0; Win64; x64)"
-                "AppleWebKit/537.36"
-                "(KHTML, like Gecko)"
-                "Chrome/137.0.0.0 Safari/537.36"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/149.0.0.0 Safari/537.36"
             )
+        )
+
+        print(
+            "Connected before new_context:",
+            browser.is_connected()
+        )
+
+        print(
+            "Return code before new_context:",
+            browser_process.returncode
         )
 
         page = await context.new_page()
 
-        try:
+        await page.goto("https://api.ipify.org")
+        #print("Public IP:", await page.text_content("body"))
 
-            await page.goto(
+        await page.goto("https://ifconfig.me/ip")
+        #print("Public IP:", await page.text_content("body"))
+
+        await page.goto("data:text/html,<script>document.body.innerHTML='JS Works';</script>")
+
+        #print(await page.text_content("body"))
+
+        await page.add_init_script("""
+        Object.defineProperty(navigator, 'webdriver', {
+            get: () => false
+        });
+
+        window.chrome = {
+            runtime: {}
+        };
+
+        """)
+
+        await page.set_extra_http_headers({
+            "Accept-Language": "en-IN,en;q=0.9",
+            "Upgrade-Insecure-Requests": "1"
+        })
+
+        try:
+            '''
+
+            response = await page.goto(
                 search_url,
-                wait_until="domcontentloaded",
+                wait_until="load",
                 timeout=120000
             )
+            '''
+            page.on(
+                "response",
+                lambda r: (
+                    print("WAF:", r.status, r.url)
+                    if "awswaf" in r.url
+                    else None
+                )
+            )
 
+            response = await page.goto(search_url)
+
+            #print(response.status)
+            #print(response.headers.get("x-amzn-waf-action"))
+
+            await page.wait_for_timeout(20000)
+            #print(page.url)
+            #print(await page.evaluate("typeof AwsWafIntegration"))
+            print(await page.evaluate("""
+            () => Object.keys(window.AwsWafIntegration || {})
+            """))
+
+            body = await page.content()
+
+            #print(body[:5000])      # first 5000 chars
+            #print("BODY LENGTH:", len(body))
+
+            #print("TITLE:", await page.title())
+
+            #print("READY:", await page.evaluate("document.readyState"))
+
+            '''
+            print(
+                "BODY LENGTH:",
+                await page.evaluate("document.body.innerHTML.length")
+            )
+            '''
+
+            html = await page.content()
+            #print(html[:3000])
+
+            if "AwsWafIntegration" in body:
+                print("AWS WAF CHALLENGE")
+
+            if "challenge.js" in body:
+                print("BOT BLOCKED")
+
+            if "verify that you're not a robot" in body.lower():
+                print("CAPTCHA PAGE")
+
+            await page.wait_for_timeout(15000)
+
+            print("URL:", page.url)
+            print("TITLE:", await page.title())
+
+            print(await page.locator("body").inner_text())
+
+            await page.wait_for_timeout(30000)
+
+            print("FINAL URL:", page.url)
+
+            # Check what cookies were set
+            # Existing cookies
+            print("===== BEFORE getToken =====")
+            cookies = await context.cookies()
+            for c in cookies:
+                print(c)
+
+            # Call getToken()
+            token = await page.evaluate("""
+            async () => {
+                try {
+                    if (!window.AwsWafIntegration)
+                        return "No AwsWafIntegration";
+
+                    const result = await AwsWafIntegration.getToken();
+
+                    return {
+                        result: result,
+                        cookie: document.cookie
+                    };
+                } catch(e) {
+                    return {
+                        error: e.toString()
+                    };
+                }
+            }
+            """)
+
+            print(token)
+
+            print("getToken() result:")
+            print(token)
+            print("getToken returned:", repr(token))
+
+            # Give JS time to write cookies
+            await page.wait_for_timeout(5000)
+
+            # Fetch cookies AGAIN
+            print("===== AFTER getToken =====")
+            cookies = await context.cookies()
+
+            for c in cookies:
+                print(c)
+
+            waf_cookie = next(
+                (c for c in cookies if "waf" in c["name"].lower()),
+                None
+            )
+
+            print("AWS WAF COOKIE:", waf_cookie)
+
+            # Wait longer if needed
+            await page.wait_for_timeout(60000)
+
+            print("===== AFTER 60 SECONDS =====")
+            for c in await context.cookies():
+                print(c)
+
+            cards = await page.locator(
+                '[data-testid="property-card"]'
+            ).count()
+
+            print("booking CARDS:", cards)
+            print(await page.locator("article").count())
+            print(await page.locator("div").count())
+            print(await page.locator("a").count())
+            
             await page.wait_for_timeout(5000)
 
             try:
                 await page.wait_for_selector(
                     '[data-testid="property-card"]',
-                    timeout=30000
+                    timeout=50000
                 )
             except:
                 await page.wait_for_selector(
                     '[data-testid="property-card-container"]',
-                    timeout=30000
+                    timeout=50000
                 )
 
             hotels = await page.query_selector_all(
                 '[data-testid="property-card"]'
             )
-
+            
             if not hotels:
                 hotels = await page.query_selector_all(
                     '[data-testid="property-card-container"]'
                 )
-
+            
             for hotel in hotels[:20]:
 
                 try:
@@ -169,488 +490,3 @@ async def scrape_booking(location, checkin, checkout):
     results.sort(key=rating_value, reverse=True)
 
     return results
-
-async def scrape_agoda(location, checkin, checkout, hotel_name=""):
-
-    results = []
-    user_hotel_name = hotel_name.strip()
-
-    async with async_playwright() as p:
-
-        browser = await p.chromium.launch(
-            headless=True,
-            args=["--no-sandbox"]
-        )
-
-        context = await browser.new_context(
-            locale="en-IN",
-            timezone_id="Asia/Kolkata",
-            viewport={"width": 1366, "height": 768}
-        )
-
-        page = await context.new_page()
-
-        try:
-
-            print("Opening Agoda...")
-
-            await page.goto(
-                "https://www.agoda.com",
-                timeout=90000
-            )
-
-            await page.wait_for_load_state("networkidle")
-            await page.wait_for_timeout(10000)
-
-            # Destination input
-            destination = page.locator(
-                'input[placeholder*="destination"]'
-            ).first
-
-            await destination.click()
-
-            await destination.fill(location)
-
-            await page.wait_for_timeout(3000)
-
-            suggestion = page.locator("li").filter(
-                has_text=location
-            ).first
-
-            await suggestion.click()
-
-            print("Suggestion selected")
-
-            await page.wait_for_timeout(2000)
-
-            # Search
-            search_btn = page.locator(
-                '[data-element-name="search-button"]'
-            )
-
-            await search_btn.click()
-
-            await page.wait_for_timeout(10000)
-            html = await page.content()
-
-            print("HTML Length:", len(html))
-
-            print("After click URL:", page.url)
-
-            print("Search clicked")
-
-            await page.wait_for_url(
-                "**/search?*",
-                timeout=60000
-            )
-
-            print("TITLE:", await page.title())
-
-            body = (await page.locator("body").inner_text()).lower()
-
-            if "problem completing your search" in body:
-                print("BOT BLOCKED")
-
-            if "captcha" in body:
-                print("CAPTCHA FOUND")
-
-            if "robot" in body:
-                print("ROBOT DETECTED")
-
-            print("Results page loaded")
-            print(page.url)
-
-            url = page.url
-
-            parts = urlparse(url)
-            query = parse_qs(parts.query)
-
-            query["checkIn"] = [checkin]
-            query["checkOut"] = [checkout]
-
-            new_url = urlunparse(
-                (
-                    parts.scheme,
-                    parts.netloc,
-                    parts.path,
-                    parts.params,
-                    urlencode(query, doseq=True),
-                    parts.fragment
-                )
-            )
-            new_url = new_url.replace("currency=USD", "currency=INR")
-            new_url = new_url.replace("currencyCode=USD", "currencyCode=INR")
-            new_url = new_url.replace("priceCur=USD", "priceCur=INR")
-
-            print("Modified URL:")
-            print(new_url)
-
-            await page.goto(
-                new_url,
-                wait_until="networkidle",
-                timeout=90000
-            )
-
-            await page.wait_for_timeout(10000)
-
-            # Load more hotels by scrolling
-
-            hotel_cards = await page.query_selector_all(
-                '[data-element-name="property-card-content"]'
-            )
-            print("HOTEL CARDS FOUND:", len(hotel_cards))
-
-            results = []
-
-            for hotel in hotel_cards[:20]:
-
-                try:
-                    hotel_el = await hotel.query_selector(
-                        'a[data-testid="property-name-link"] span'
-                    )
-
-                    if not hotel_el:
-                        continue
-
-                    hotel_name = (await hotel_el.inner_text()).strip()
-
-                    hotel_location = "N/A"
-                    price = "N/A"
-                    rating = "N/A"
-                    link = ""
-
-                    location_el = await hotel.query_selector(
-                        'button[data-selenium="area-city-text"]'
-                    )
-
-                    if location_el:
-                        hotel_location = (await location_el.inner_text()).strip()
-
-                    price_el = await hotel.query_selector(
-                        '[data-selenium="display-price"]'
-                    )
-
-                    if price_el:
-                        price = (await price_el.inner_text()).strip()
-
-                    rating_el = await hotel.query_selector(
-                        '[data-element-name="property-card-review"]'
-                    )
-
-                    if rating_el:
-                        rating_text = await rating_el.inner_text()
-
-                        match = re.search(r'(\d+\.\d+)', rating_text)
-
-                        if match:
-                            rating = match.group(1)
-
-                    link_el = await hotel.query_selector(
-                        'a[data-testid="property-name-link"]'
-                    )
-
-                    if link_el:
-                        link = await link_el.get_attribute("href")
-
-                        if link and link.startswith("/"):
-                            link = "https://www.agoda.com" + link
-
-                    results.append({
-                        "hotel_name": hotel_name,
-                        "location": hotel_location,
-                        "price": price,
-                        "rating": rating,
-                        "link": link
-                    })
-
-                except Exception as e:
-                    print("Parse Error:", e)
-
-        except Exception as e:
-            print("Agoda Error:", e)
-
-        finally:
-
-            await browser.close()
-
-    return results
-
-async def search_all(location, checkin, checkout):
-
-    booking_task = scrape_booking(
-        location,
-        checkin,
-        checkout
-    )
-
-    
-
-    agoda_task = scrape_agoda(
-        location,
-        checkin,
-        checkout
-    )
-
-    booking_results, agoda_results = await asyncio.gather(
-        booking_task,
-        agoda_task,
-        return_exceptions=True
-    )
-
-    if isinstance(booking_results, Exception):
-        print("Booking Error:", booking_results)
-        booking_results = []
-
-    if isinstance(agoda_results, Exception):
-        print("Agoda Error:", agoda_results)
-        agoda_results = []
-
-    combined = booking_results + agoda_results
-
-    def rating_value(h):
-        try:
-            return float(h["rating"])
-        except:
-            return 0
-
-    combined.sort(
-        key=rating_value,
-        reverse=True
-    )
-
-    return combined
-
-
-@app.route("/")
-def home():
-
-    return render_template_string("""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Booking Hotel Search</title>
-
-        <style>
-
-            body{
-                font-family:Arial;
-                background:#f4f6f9;
-                padding:40px;
-            }
-
-            .container{
-                max-width:700px;
-                margin:auto;
-                background:white;
-                padding:30px;
-                border-radius:12px;
-                box-shadow:0 2px 15px rgba(0,0,0,.1);
-            }
-
-            h2{
-                text-align:center;
-                color:#0071c2;
-            }
-
-            input{
-                width:100%;
-                padding:12px;
-                margin-top:8px;
-                margin-bottom:20px;
-                border:1px solid #ccc;
-                border-radius:6px;
-                box-sizing:border-box;
-            }
-
-            button{
-                width:100%;
-                padding:12px;
-                background:#0071c2;
-                color:white;
-                border:none;
-                border-radius:6px;
-                cursor:pointer;
-                font-size:16px;
-            }
-
-            button:hover{
-                background:#005ea6;
-            }
-
-        </style>
-
-    </head>
-
-    <body>
-
-        <div class="container">
-
-            <h2>Hotel Search</h2>
-
-            <form action="/search" method="GET">
-
-                <label>Location</label>
-                <input
-                    type="text"
-                    name="location"
-                    placeholder="Enter city"
-                    required
-                >
-
-                <label>Check-in Date</label>
-                <input
-                    type="date"
-                    name="checkin"
-                    required
-                >
-
-                <label>Check-out Date</label>
-                <input
-                    type="date"
-                    name="checkout"
-                    required
-                >
-
-                <button type="submit">
-                    Search Hotels
-                </button>
-
-            </form>
-
-        </div>
-
-    </body>
-    </html>
-    """)
-
-@app.route("/search")
-def search_hotels():
-
-    location = request.args.get("location")
-    checkin = request.args.get("checkin")
-    checkout = request.args.get("checkout")
-
-    if not location or not checkin or not checkout:
-        return "location, checkin and checkout are required"
-
-    hotels = asyncio.run(
-        search_all(
-            location,
-            checkin,
-            checkout
-        )
-    )
-
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-
-    <head>
-
-        <title>Hotel Results</title>
-
-        <style>
-
-            body{{
-                font-family:Arial;
-                background:#f4f6f9;
-                padding:30px;
-            }}
-
-            h2{{
-                color:#0071c2;
-            }}
-
-            .hotel{{
-                background:white;
-                padding:20px;
-                margin-bottom:20px;
-                border-radius:10px;
-                box-shadow:0 2px 10px rgba(0,0,0,.1);
-            }}
-
-            .btn{{
-                display:inline-block;
-                background:#0071c2;
-                color:white;
-                padding:10px 15px;
-                border-radius:6px;
-                text-decoration:none;
-            }}
-
-        </style>
-
-    </head>
-
-    <body>
-
-        <h2>Hotels Found: {len(hotels)}</h2>
-
-        <p>
-            <a href="/" class="btn">
-                New Search
-            </a>
-        </p>
-    """
-
-    if len(hotels) == 0:
-
-        html += """
-        <div class="hotel">
-            <h3>No hotels found.</h3>
-        </div>
-        """
-
-    for hotel in hotels:
-
-        html += f"""
-
-        <div class="hotel">
-
-            <h3>{hotel['hotel_name']}</h3>
-
-            <p>
-                <b>Location:</b>
-                {hotel['location']}
-            </p>
-
-            <p>
-                <b>Price:</b>
-                {hotel['price']}
-            </p>
-
-            <p>
-                <b>Rating:</b>
-                {hotel['rating']}
-            </p>
-
-            <p>
-                <a
-                    class="btn"
-                    href="{hotel['link']}"
-                    target="_blank"
-                >
-                    View Hotel
-                </a>
-            </p>
-
-        </div>
-
-        """
-
-    html += """
-    </body>
-    </html>
-    """
-
-    return html
-
-
-if __name__ == "__main__":
-
-    app.run(
-        host="0.0.0.0",
-        port=1000,
-        debug=True,
-        use_reloader=False
-    )
