@@ -604,7 +604,7 @@ def search_hotels():
         </p>
     """
 
-    if len(all_results) == 0:
+    if len(hotels) == 0:
 
         html += """
         <div class="hotel">
