@@ -20,8 +20,6 @@ async def scrape_booking(location, checkin, checkout):
         "&sb=1"
         "&src=index"
         "&src_elem=sb"
-        "&dest_id=-2103041"
-        "&dest_type=city"
         f"&checkin={checkin}"
         f"&checkout={checkout}"
         "&group_adults=2"
@@ -550,16 +548,9 @@ def search_hotels():
     if not location or not checkin or not checkout:
         return "location, checkin and checkout are required"
 
-    all_results = []
-
-    for i in range(10):
-        print(f"Running search {i+1}/10")
-    
-        hotels = asyncio.run(
+    hotels = asyncio.run(
             scrape_booking(location, checkin, checkout)
-        )
-    
-        all_results.extend(hotels)   # not append
+    )
 
     html = f"""
     <!DOCTYPE html>
@@ -604,7 +595,7 @@ def search_hotels():
 
     <body>
 
-        <h2>Hotels Found: {len(all_results)}</h2>
+        <h2>Hotels Found: {len(hotels)}</h2>
 
         <p>
             <a href="/" class="btn">
@@ -621,7 +612,7 @@ def search_hotels():
         </div>
         """
 
-    for hotel in all_results:
+    for hotel in hotels:
 
         html += f"""
 
