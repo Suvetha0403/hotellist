@@ -48,15 +48,16 @@ async def scrape_booking(location, checkin, checkout):
                 timeout=120000
             )
 
+            body = (await page.locator("body").inner_text())[:2000]
+            print(body)
+
             await page.wait_for_timeout(5000)
 
             print(page.url)
             print(await page.title())
             
-            content = await page.content()
-            
-            with open("booking_debug.html", "w", encoding="utf-8") as f:
-                f.write(content)
+            html = await page.content()
+            print(len(html))
 
             try:
                 cards = await page.locator(
