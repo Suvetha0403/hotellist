@@ -13,18 +13,12 @@ async def scrape_booking(location, checkin, checkout):
     search_url = (
         "https://www.booking.com/searchresults.html"
         f"?ss={quote(location)}"
-        f"&ssne={quote(location)}"
-        f"&ssne_untouched={quote(location)}"
-        "&aid=304142"
-        "&lang=en-us"
-        "&sb=1"
-        "&src=index"
-        "&src_elem=sb"
         f"&checkin={checkin}"
         f"&checkout={checkout}"
         "&group_adults=2"
         "&group_children=0"
         "&no_rooms=1"
+        "&selected_currency=INR"
     )
 
     async with async_playwright() as p:
