@@ -20,7 +20,6 @@ async def scrape_booking(location, checkin, checkout):
         "&sb=1"
         "&src=index"
         "&src_elem=sb"
-        "&dest_id=-2103041"
         "&dest_type=city"
         f"&checkin={checkin}"
         f"&checkout={checkout}"
