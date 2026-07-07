@@ -50,11 +50,20 @@ async def scrape_booking(location, checkin, checkout):
 
             await page.wait_for_timeout(5000)
 
+            print(page.url)
+            print(await page.title())
+            
+            content = await page.content()
+            
+            with open("booking_debug.html", "w", encoding="utf-8") as f:
+                f.write(content)
+
             try:
-                await page.wait_for_selector(
-                    '[data-testid="property-card-container"]',
-                    timeout=30000
-                )
+                cards = await page.locator(
+                    '[data-testid="property-card-container"]'
+                ).count()
+                
+                print(cards)
             except:
                 await page.wait_for_selector(
                     '[data-testid="property-card"]',
