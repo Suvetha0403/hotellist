@@ -5,7 +5,7 @@ import re
 from playwright.async_api import async_playwright
 
 app = Flask(__name__)
-
+'''
 async def scrape_booking(location, checkin, checkout):
 
     results = []
@@ -63,7 +63,7 @@ async def scrape_booking(location, checkin, checkout):
                     '[data-testid="property-card-container"]'
                 ).count()
                 
-                print(cards)
+                print("no. of cards : ",cards)
             except:
                 await page.wait_for_selector(
                     '[data-testid="property-card"]',
@@ -178,7 +178,7 @@ async def scrape_booking(location, checkin, checkout):
     results.sort(key=rating_value, reverse=True)
 
     return results
-
+'''
 async def scrape_agoda(location, checkin, checkout, hotel_name=""):
 
     results = []
@@ -383,7 +383,7 @@ async def scrape_agoda(location, checkin, checkout, hotel_name=""):
             await browser.close()
 
     return results
-
+'''
 async def search_all(location, checkin, checkout):
 
     booking_task = scrape_booking(
@@ -428,7 +428,7 @@ async def search_all(location, checkin, checkout):
     )
 
     return combined
-
+'''
 
 @app.route("/")
 def home():
@@ -543,7 +543,7 @@ def search_hotels():
         return "location, checkin and checkout are required"
 
     hotels = asyncio.run(
-        search_all(
+        scrape_agoda(
             location,
             checkin,
             checkout
