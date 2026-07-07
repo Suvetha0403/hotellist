@@ -11,14 +11,22 @@ async def scrape_booking(location, checkin, checkout):
     results = []
 
     search_url = (
-        "https://www.booking.com/searchresults.en-gb.html"
+        "https://www.booking.com/searchresults.html"
         f"?ss={quote(location)}"
+        f"&ssne={quote(location)}"
+        f"&ssne_untouched={quote(location)}"
+        "&aid=304142"
+        "&lang=en-us"
+        "&sb=1"
+        "&src=index"
+        "&src_elem=sb"
+        "&dest_id=-2103041"
+        "&dest_type=city"
         f"&checkin={checkin}"
         f"&checkout={checkout}"
         "&group_adults=2"
         "&group_children=0"
         "&no_rooms=1"
-        "&selected_currency=INR"
     )
 
     async with async_playwright() as p:
@@ -44,7 +52,7 @@ async def scrape_booking(location, checkin, checkout):
 
             await page.goto(
                 search_url,
-                wait_until="domcontentloaded",
+                wait_until="networkidle",
                 timeout=120000
             )
 
