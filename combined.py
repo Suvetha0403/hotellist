@@ -187,7 +187,7 @@ async def scrape_booking(location, checkin, checkout):
     results.sort(key=rating_value, reverse=True)
 
     return results
-'''
+
 async def scrape_agoda(location, checkin, checkout, hotel_name=""):
 
     results = []
@@ -437,7 +437,6 @@ async def search_all(location, checkin, checkout):
     )
 
     return combined
-'''
 
 @app.route("/")
 def home():
@@ -552,7 +551,7 @@ def search_hotels():
         return "location, checkin and checkout are required"
 
     hotels = asyncio.run(
-        scrape_booking(
+        search_all(
             location,
             checkin,
             checkout
