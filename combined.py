@@ -550,13 +550,20 @@ def search_hotels():
     if not location or not checkin or not checkout:
         return "location, checkin and checkout are required"
 
-    hotels = asyncio.run(
-        search_all(
-            location,
-            checkin,
-            checkout
+    all_results = []
+
+    for i in range(10):
+        print(f"Running search {i+1}/10")
+    
+        hotels = asyncio.run(
+            search_all(
+                location,
+                checkin,
+                checkout
+            )
         )
-    )
+    
+        all_results.append(hotels)
 
     html = f"""
     <!DOCTYPE html>
