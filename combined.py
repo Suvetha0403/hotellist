@@ -552,7 +552,7 @@ def search_hotels():
 
     all_results = []
 
-    for i in range(10):
+    for i in range(30):
         print(f"Running search {i+1}/10")
     
         hotels = asyncio.run(
