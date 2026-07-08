@@ -231,23 +231,24 @@ async def scrape_booking(location, hotel_name, checkin, checkout):
             await page.wait_for_timeout(5000)
 
             try:
+                cards = await page.locator(
+                    '[data-testid="property-card-container"]'
+                ).count()
+                
+                print("no. of cards : ",cards)
+            except:
                 await page.wait_for_selector(
                     '[data-testid="property-card"]',
                     timeout=30000
                 )
-            except:
-                await page.wait_for_selector(
-                    '[data-testid="property-card-container"]',
-                    timeout=30000
-                )
 
             hotels = await page.query_selector_all(
-                '[data-testid="property-card"]'
+                '[data-testid="property-card-container"]'
             )
 
             if not hotels:
                 hotels = await page.query_selector_all(
-                    '[data-testid="property-card-container"]'
+                    '[data-testid="property-card"]'
                 )
 
             for hotel in hotels[:30]:
