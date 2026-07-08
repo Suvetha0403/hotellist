@@ -553,7 +553,7 @@ def search_hotels():
     all_results = []
 
     for i in range(30):
-        print(f"Running search {i+1}/10")
+        print(f"Running search {i+1}/30")
     
         hotels = asyncio.run(
             scrape_booking(location, checkin, checkout)
