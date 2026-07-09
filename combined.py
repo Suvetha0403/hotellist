@@ -601,7 +601,7 @@ def search_hotels():
 
     <body>
 
-        <h2>Hotels Found: {len(all_results)}</h2>
+        <h2>Hotels Found: {len(hotels)}</h2>
 
         <p>
             <a href="/" class="btn">
@@ -610,7 +610,7 @@ def search_hotels():
         </p>
     """
 
-    if len(all_results) == 0:
+    if len(hotels) == 0:
 
         html += """
         <div class="hotel">
@@ -618,7 +618,7 @@ def search_hotels():
         </div>
         """
 
-    for hotel in all_results:
+    for hotel in hotels:
 
         html += f"""
 
