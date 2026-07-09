@@ -549,9 +549,8 @@ def search_hotels():
 
     if not location or not checkin or not checkout:
         return "location, checkin and checkout are required"
-
     
-     hotels = asyncio.run(
+    hotels = asyncio.run(
         scrape_booking(
             location,
             checkin,
